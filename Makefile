@@ -9,8 +9,12 @@ DOCKERCMD=docker
 DOCKERBUILD=$(DOCKERCMD) build
 
 all: test build
-build:
+build: GeoLite2-City.mmdb
 	$(GOBUILD) -o $(BINARY_NAME) -v
+
+GeoLite2-City.mmdb:
+	wget -c https://static.cyub.vip/GeoLite2-City.mmdb.tgz -O GeoLite2-City.mmdb.tgz
+	tar -xzvf GeoLite2-City.mmdb.tgz && rm GeoLite2-City.mmdb.tgz
 
 test:
 	$(GOTEST) -v ./...
@@ -19,8 +23,7 @@ clean:
 	$(GOCLEAN)
 	rm -f $(BINARY_NAME)
 
-run:
-	$(GOBUILD) -o $(BINARY_NAME) -v
+run: build
 	./$(BINARY_NAME)
 
 build-linux:

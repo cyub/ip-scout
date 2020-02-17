@@ -11,7 +11,7 @@ make build
 ### 运行
 
 ```
-export APP_PORT=8000 & ./app
+export APP_PORT=8000 && ./app
 ```
 
 ### 构建镜像

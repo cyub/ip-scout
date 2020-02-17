@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -27,6 +26,11 @@ func main() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		userIP := r.URL.Query().Get("ip")
+		if len(userIP) > 0 && net.ParseIP(userIP) == nil {
+			writeHtmlToResponse(w, "ip argument invalid", http.StatusBadRequest)
+			return
+		}
+
 		if userIP == "" {
 			userIP = RemoteAddr(r).(string)
 		}
@@ -35,25 +39,19 @@ func main() {
 			log.Printf("the client ip is %v", userIP)
 		}
 
-		userAgent := r.Header.Get("User-Agent")
-		var isCurlRequest bool = false
-		if userAgent[:4] == "curl" {
-			isCurlRequest = true
-		}
-		err := geoip.City(userIP)
-		if err != nil {
-			w.Header().Set("Content-Type", "text/html")
-			result := "Opps! 系统异常啦"
-			w.Header().Set("Content-Length", strconv.Itoa(len(result)))
-			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(result))
-			fmt.Println(err)
+		if geoip.City(userIP) != nil {
+			writeHtmlToResponse(w, "Opps! 系统异常啦", http.StatusServiceUnavailable)
 			return
+		}
+
+		var isCurlRequest bool = false
+		if r.Header.Get("User-Agent")[:4] == "curl" {
+			isCurlRequest = true
 		}
 
 		if isCurlRequest != true {
 			data, _ := json.Marshal(geoip)
-			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Type", "application/json;charset=utf-8")
 			w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 			w.WriteHeader(http.StatusOK)
 			w.Write(data)
@@ -80,10 +78,7 @@ func main() {
 			result += "否\n"
 		}
 
-		w.Header().Set("Content-Type", "text/html")
-		w.Header().Set("Content-Length", strconv.Itoa(len(result)))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(result))
+		writeHtmlToResponse(w, result, http.StatusOK)
 	})
 
 	StartWebServer(port)
@@ -108,27 +103,22 @@ func Env(item, fallback string) string {
 }
 
 func RemoteAddr(r *http.Request) interface{} {
-	ips := proxyIps(r)
+	var (
+		ip  string
+		err error
+		ips = proxyIps(r)
+	)
+
 	if len(ips) > 0 && ips[0] != "" {
-		rip, _, err := net.SplitHostPort(ips[0])
-		if err != nil {
-			rip = ips[0]
-		}
-		return rip
+		ip, _, err = net.SplitHostPort(ips[0])
 	}
 
-	if ip, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return ip
+	if (ip == "") || (err != nil) {
+		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
 	}
 
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return nil
-	}
-
-	userIP := net.ParseIP(ip)
-	if userIP == nil {
-		return nil
+	if net.ParseIP(ip) == nil {
+		return ""
 	}
 
 	return ip
@@ -140,4 +130,11 @@ func proxyIps(r *http.Request) []string {
 		return strings.Split(ips, ",")
 	}
 	return []string{}
+}
+
+func writeHtmlToResponse(w http.ResponseWriter, content string, status int) {
+	w.Header().Set("Content-Type", "text/html;charset=utf-8")
+	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+	w.WriteHeader(status)
+	w.Write([]byte(content))
 }

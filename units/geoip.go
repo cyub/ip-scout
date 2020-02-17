@@ -23,20 +23,19 @@ type GeoIP struct {
 }
 
 func (geoip *GeoIP) City(ip string) error {
+
+	netIp := net.ParseIP(ip)
+	if netIp == nil {
+		return errors.New(fmt.Sprintf("Invalid Ip:%v", netIp))
+	}
+
 	db, err := geoip2.Open("GeoLite2-City.mmdb")
 	if err != nil {
 		return err
 	}
-
 	defer db.Close()
 
-	userIP := net.ParseIP(ip)
-	if userIP == nil {
-		err := fmt.Sprintf("Invalid Ip:%v", userIP)
-		return errors.New(err)
-	}
-
-	record, err := db.City(userIP)
+	record, err := db.City(netIp)
 	if err != nil {
 		return err
 	}

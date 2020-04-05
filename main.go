@@ -2,14 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"ip-scout/units"
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
-	"strings"
-
-	units "github.com/cyub/ip-scout/units"
 )
 
 const (
@@ -17,22 +14,22 @@ const (
 	defaultAppPort = "8000"
 )
 
-func main() {
-	var (
-		env   = Env("APP_ENV", defaultAppEnv)
-		port  = Env("APP_PORT", defaultAppPort)
-		geoip = units.GeoIP{}
-	)
+var (
+	env   = units.Env("APP_ENV", defaultAppEnv)
+	port  = units.Env("APP_PORT", defaultAppPort)
+	geoip = units.GeoIP{}
+)
 
+func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		userIP := r.URL.Query().Get("ip")
-		if len(userIP) > 0 && net.ParseIP(userIP) == nil {
-			writeHtmlToResponse(w, "ip argument invalid", http.StatusBadRequest)
-			return
+		if len(userIP) == 0 {
+			userIP = units.RemoteAddr(r)
 		}
 
-		if userIP == "" {
-			userIP = RemoteAddr(r).(string)
+		if len(userIP) == 0 || net.ParseIP(userIP) == nil {
+			writeHTMLToResponse(w, "ip argument invalid", http.StatusBadRequest)
+			return
 		}
 
 		if env != "production" {
@@ -40,21 +37,18 @@ func main() {
 		}
 
 		if geoip.City(userIP) != nil {
-			writeHtmlToResponse(w, "Opps! 系统异常啦", http.StatusServiceUnavailable)
+			writeHTMLToResponse(w, "Opps! 系统异常啦", http.StatusServiceUnavailable)
 			return
 		}
 
-		var isCurlRequest bool = false
-		if r.Header.Get("User-Agent")[:4] == "curl" {
+		isCurlRequest := false
+		userAgent := r.Header.Get("User-Agent")
+		if len(userAgent) >= 4 && userAgent[:4] == "curl" {
 			isCurlRequest = true
 		}
 
-		if isCurlRequest != true {
-			data, _ := json.Marshal(geoip)
-			w.Header().Set("Content-Type", "application/json;charset=utf-8")
-			w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-			w.WriteHeader(http.StatusOK)
-			w.Write(data)
+		if !isCurlRequest {
+			writeJSONToResponse(w, geoip, http.StatusOK)
 			return
 		}
 
@@ -72,67 +66,34 @@ func main() {
 		result += "邮政编码：" + geoip.PostalCode + "\n"
 
 		result += "是否匿名代理："
-		if geoip.IsAnonymousProxy == true {
+		if geoip.IsAnonymousProxy {
 			result += "是\n"
 		} else {
 			result += "否\n"
 		}
 
-		writeHtmlToResponse(w, result, http.StatusOK)
+		writeHTMLToResponse(w, result, http.StatusOK)
 	})
-
-	StartWebServer(port)
+	startWebServer(port)
 }
 
 // StartWebServer for start web server
-func StartWebServer(port string) {
+func startWebServer(port string) {
 	log.Println("Starting HTTP service at " + port)
-	err := http.ListenAndServe(":"+port, nil)
-	if err != nil {
-		log.Println("An error occured starting HTTP listener at port " + port)
-		log.Println("Error: " + err.Error())
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatalf("An error occured starting HTTP listener at port %s %s", port, err.Error())
 	}
 }
 
-func Env(item, fallback string) string {
-	e := os.Getenv(item)
-	if e == "" {
-		return fallback
-	}
-	return e
+func writeJSONToResponse(w http.ResponseWriter, paylaod interface{}, status int) {
+	data, _ := json.Marshal(paylaod)
+	w.Header().Set("Content-Type", "application/json;charset=utf-8")
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
-func RemoteAddr(r *http.Request) interface{} {
-	var (
-		ip  string
-		err error
-		ips = proxyIps(r)
-	)
-
-	if len(ips) > 0 && ips[0] != "" {
-		ip, _, err = net.SplitHostPort(ips[0])
-	}
-
-	if (ip == "") || (err != nil) {
-		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
-	}
-
-	if net.ParseIP(ip) == nil {
-		return ""
-	}
-
-	return ip
-}
-
-// Proxy returns proxy client ips slice.
-func proxyIps(r *http.Request) []string {
-	if ips := r.Header.Get("X-Forwarded-For"); ips != "" {
-		return strings.Split(ips, ",")
-	}
-	return []string{}
-}
-
-func writeHtmlToResponse(w http.ResponseWriter, content string, status int) {
+func writeHTMLToResponse(w http.ResponseWriter, content string, status int) {
 	w.Header().Set("Content-Type", "text/html;charset=utf-8")
 	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
 	w.WriteHeader(status)

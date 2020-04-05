@@ -4,7 +4,7 @@ GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 
-BINARY_NAME=app
+BINARY_NAME=ip-scout
 DOCKERCMD=docker
 DOCKERBUILD=$(DOCKERCMD) build
 
@@ -22,6 +22,9 @@ test:
 clean:
 	$(GOCLEAN)
 	rm -f $(BINARY_NAME)
+
+dev:
+	air -c .air.conf
 
 run: build
 	./$(BINARY_NAME)

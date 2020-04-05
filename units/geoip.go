@@ -1,13 +1,13 @@
 package units
 
 import (
-	"errors"
 	"fmt"
 	"net"
 
-	geoip2 "github.com/oschwald/geoip2-golang"
+	"github.com/oschwald/geoip2-golang"
 )
 
+// GeoIP define struct
 type GeoIP struct {
 	IP               string
 	CountryName      string
@@ -22,20 +22,21 @@ type GeoIP struct {
 	IsAnonymousProxy bool
 }
 
+// City return the ip's city info
 func (geoip *GeoIP) City(ip string) error {
-
-	netIp := net.ParseIP(ip)
-	if netIp == nil {
-		return errors.New(fmt.Sprintf("Invalid Ip:%v", netIp))
+	netIP := net.ParseIP(ip)
+	if netIP == nil {
+		return fmt.Errorf("Invalid Ip:%v", netIP)
 	}
 
-	db, err := geoip2.Open("GeoLite2-City.mmdb")
+	geodb := Env("GEOIP_DB", "GeoLite2-City.mmdb")
+	db, err := geoip2.Open(geodb)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	record, err := db.City(netIp)
+	record, err := db.City(netIP)
 	if err != nil {
 		return err
 	}

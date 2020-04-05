@@ -14,6 +14,12 @@ make build
 export APP_PORT=8000 && ./app
 ```
 
+### 开发
+
+```
+make dev
+```
+
 ### 构建镜像
 
 ```

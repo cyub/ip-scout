@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"ip-scout/units"
 	"log"
-	"net"
 	"net/http"
 	"strconv"
 )
@@ -27,7 +26,7 @@ func main() {
 			userIP = units.RemoteAddr(r)
 		}
 
-		if len(userIP) == 0 || net.ParseIP(userIP) == nil {
+		if len(userIP) == 0 {
 			writeHTMLToResponse(w, "ip argument invalid", http.StatusBadRequest)
 			return
 		}
@@ -85,8 +84,8 @@ func startWebServer(port string) {
 	}
 }
 
-func writeJSONToResponse(w http.ResponseWriter, paylaod interface{}, status int) {
-	data, _ := json.Marshal(paylaod)
+func writeJSONToResponse(w http.ResponseWriter, payload interface{}, status int) {
+	data, _ := json.Marshal(payload)
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.WriteHeader(http.StatusOK)
